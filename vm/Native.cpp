@@ -328,7 +328,7 @@ bool dvmLoadNativeCode(const char* pathName, Object* classLoader,
 
     if (verbose)
         ALOGD("Trying to load lib %s %p", pathName, classLoader);
-
+/*
 #ifdef WITH_TAINT_TRACKING
     // PJG: TODO: factor out this check
     if (strncmp(pathName, "/system", sizeof("/system")-1) != 0 && strcmp(pathName, "libjavacore.so") !=0 && strcmp(pathName, "libnativehelper.so") !=0) {
@@ -340,7 +340,7 @@ bool dvmLoadNativeCode(const char* pathName, Object* classLoader,
     	return false;
     }
 #endif
-
+*/
     *detail = NULL;
 
     /*
