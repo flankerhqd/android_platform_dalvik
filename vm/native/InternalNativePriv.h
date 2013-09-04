@@ -31,6 +31,7 @@
 #endif
 #define RETURN_BOOLEAN(_val)    do { pResult->i = (_val); return; } while(0)
 #define RETURN_INT(_val)        do { pResult->i = (_val); return; } while(0)
+#define RETURN_SHORT(_val)      do { pResult->s = (_val); return; } while(0)
 #define RETURN_LONG(_val)       do { pResult->j = (_val); return; } while(0)
 #define RETURN_FLOAT(_val)      do { pResult->f = (_val); return; } while(0)
 #define RETURN_DOUBLE(_val)     do { pResult->d = (_val); return; } while(0)
@@ -128,6 +129,7 @@ extern const DalvikNativeMethod dvm_org_apache_harmony_dalvik_NativeTestTarget[]
 extern const DalvikNativeMethod dvm_sun_misc_Unsafe[];
 #ifdef WITH_TAINT_TRACKING
 extern const DalvikNativeMethod dvm_dalvik_system_Taint[];
+extern const DalvikNativeMethod dvm_dalvik_system_TaintLog[];
 #endif
 
 #endif  // DALVIK_NATIVE_INTERNALNATIVEPRIV_H_

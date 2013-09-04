@@ -23,7 +23,7 @@
 #include "Dalvik.h"
 #include "native/InternalNativePriv.h"
 #include "attr/xattr.h"
-
+#include "cutils/properties.h"
 #include <errno.h>
 
 #define TAINT_XATTR_NAME "user.taint"
@@ -40,6 +40,24 @@ static void Dalvik_dalvik_system_Taint_addTaintString(const u4* args,
 
     if (strObj) {
     value = strObj->array();
+	value->taint.tag |= tag;
+    }
+    RETURN_VOID();
+}
+
+ /*
+ * public static void addTaintCharSequence(String str, int tag)
+ */
+static void Dalvik_dalvik_system_Taint_addTaintCharSequence(const u4* args,
+    JValue* pResult)
+{
+    StringObject *strObj = (StringObject*) args[0];
+    u4 tag = args[1];
+    ArrayObject *value = NULL;
+
+    if (strObj) {
+	value = (ArrayObject*) dvmGetFieldObject((Object*)strObj,
+				    gDvm.offJavaLangString_value);
 	value->taint.tag |= tag;
     }
     RETURN_VOID();
@@ -296,6 +314,24 @@ static void Dalvik_dalvik_system_Taint_getTaintString(const u4* args,
 
     if (strObj) {
     value = strObj->array();
+	RETURN_INT(value->taint.tag);
+    } else {
+	RETURN_INT(TAINT_CLEAR);
+    }
+}
+
+ /*
+ * public static int getTaintCharSequence(CharSequence cs)
+ */
+static void Dalvik_dalvik_system_Taint_getTaintCharSequence(const u4* args,
+    JValue* pResult)
+{
+    StringObject *strObj = (StringObject*) args[0];
+    ArrayObject *value = NULL;
+
+    if (strObj) {
+	value = (ArrayObject*) dvmGetFieldObject((Object*)strObj,
+				    gDvm.offJavaLangString_value);
 	RETURN_INT(value->taint.tag);
     } else {
 	RETURN_INT(TAINT_CLEAR);
@@ -643,10 +679,14 @@ static void Dalvik_dalvik_system_Taint_log(const u4* args,
 
 	msg = dvmCreateCstrFromString(msgObj);
 	ALOG(LOG_WARN, "TaintLog", "%s", msg);
-	char *curmsg = msg;
-	while(strlen(curmsg) > 1013)
+	char *curmsg = msg;// "TaintLog: " is 10 characters long
+	{
+		curmsg += 1013;
+		ALOG(LOG_WARN, "TaintLog", "%s", curmsg);
+	}
+	while(strlen(curmsg) > 1023)
 	{   
-		curmsg = curmsg+1013;
+		curmsg = curmsg+1023;
 		ALOG(LOG_WARN, "TaintLog", "%s", curmsg);
 	}
 	free(msg);
@@ -657,26 +697,149 @@ static void Dalvik_dalvik_system_Taint_log(const u4* args,
 /*
  * public static void logPathFromFd(int fd)
  */
-static void Dalvik_dalvik_system_Taint_logPathFromFd(const u4* args,
+static void Dalvik_dalvik_system_Taint_getPathFromFd(const u4* args,
     JValue* pResult)
 {
     int fd = (int) args[0];
     pid_t pid;
     char ppath[20]; // these path lengths should be enough
     char rpath[80];
-    int err;
-
+    
+    int len = 0;
 
     pid = getpid();
     snprintf(ppath, 20, "/proc/%d/fd/%d", pid, fd);
-    err = readlink(ppath, rpath, 80);
-    if (err >= 0) {
-	ALOGW("TaintLog: fd %d -> %s", fd, rpath);
-    } else {
-	ALOGW("TaintLog: error finding path for fd %d", fd);
+   
+
     }
 
-    RETURN_VOID();
+    len = readlink(ppath, rpath, 80);
+
+    // Build return string
+    StringObject *valueObj = NULL;
+    if (len > 0)
+    {
+        valueObj = dvmCreateStringFromCstrAndLength(rpath, len);
+        dvmReleaseTrackedAlloc((Object*)valueObj, NULL);
+    }
+    else
+    {
+        valueObj = dvmCreateStringFromCstr("");
+        dvmReleaseTrackedAlloc((Object*)valueObj, NULL);
+     }
+ 
+    RETURN_PTR(valueObj);
+}
+
+static void Dalvik_dalvik_system_Taint_getProperty(const u4* args,
+                                                   JValue* pResult)
+{
+    StringObject *keyObj = (StringObject*) args[0];    
+    char *key;    
+    StringObject *defaultValueObj = (StringObject*) args[1];    
+    StringObject *valueObj = NULL;
+
+    char valueBuffer[PROPERTY_VALUE_MAX];
+
+    if (keyObj == NULL) {
+        dvmThrowException("Ljava/lang/NullPointerException;", NULL);
+        RETURN_VOID();
+    }
+    if (defaultValueObj == NULL) {
+        dvmThrowException("Ljava/lang/NullPointerException;", NULL);
+        RETURN_VOID();
+    }
+    
+    key = dvmCreateCstrFromString(keyObj);
+
+    int len;
+    len = property_get(key, valueBuffer, "");
+    if (len >= 0) {
+        valueObj = dvmCreateStringFromCstrAndLength(valueBuffer, len);
+        dvmReleaseTrackedAlloc((Object*)valueObj, NULL);
+    } else {
+        valueObj = defaultValueObj;
+    }
+
+    free(key);
+    RETURN_PTR(valueObj);
+}
+
+static void Dalvik_dalvik_system_Taint_getPropertyAsInt(const u4* args,
+                                                        JValue* pResult)
+{
+    StringObject *keyObj = (StringObject*) args[0];    
+    char *key;    
+    u4 defaultValue = args[1];
+    u4 value = defaultValue;
+
+    char valueBuffer[PROPERTY_VALUE_MAX];
+
+    if (keyObj == NULL) {
+        dvmThrowException("Ljava/lang/NullPointerException;", NULL);
+        RETURN_VOID();
+    }   
+    key = dvmCreateCstrFromString(keyObj);
+
+    int len;
+    len = property_get(key, valueBuffer, "");
+    if (len >= 0) {
+        u4 temp;
+        if (sscanf(valueBuffer, "%d", &temp) == 1)
+        {
+            value = temp;
+        }
+    }
+
+    free(key);
+    RETURN_INT(value);
+}
+
+static void Dalvik_dalvik_system_Taint_getPropertyAsBool(const u4* args,
+                                                         JValue* pResult)
+{
+    StringObject *keyObj = (StringObject*) args[0];    
+    char *key;    
+    u4 defaultValue = args[1];
+    u4 value = defaultValue;
+
+    char valueBuffer[PROPERTY_VALUE_MAX];
+
+    if (keyObj == NULL) {
+        dvmThrowException("Ljava/lang/NullPointerException;", NULL);
+        RETURN_VOID();
+    }
+    
+    key = dvmCreateCstrFromString(keyObj);
+
+    int len;
+    len = property_get(key, valueBuffer, "");
+    if (len == 1) 
+    {
+        char ch = valueBuffer[0];
+        if (ch == '0' || ch == 'n')
+        {
+            value = 0;
+        }
+        else if (ch == '1' || ch == 'y')
+        {
+            value = 1;
+        }
+    } 
+    else if (len > 1) 
+    {
+        if (!strcmp(valueBuffer, "no") || !strcmp(valueBuffer, "false") || !strcmp(valueBuffer, "off")) 
+        {
+            value = 0;
+        } 
+        else if (!strcmp(valueBuffer, "yes") || !strcmp(valueBuffer, "true") || !strcmp(valueBuffer, "on")) 
+        {
+            value = 1;
+        }
+    }
+
+    free(key);
+    RETURN_BOOLEAN(value);
 }
 
 /*
@@ -695,6 +858,8 @@ static void Dalvik_dalvik_system_Taint_logPeerFromFd(const u4* args,
 const DalvikNativeMethod dvm_dalvik_system_Taint[] = {
     { "addTaintString",  "(Ljava/lang/String;I)V",
         Dalvik_dalvik_system_Taint_addTaintString},
+    { "addTaintCharSequence",  "(Ljava/lang/CharSequence;I)V",
+        Dalvik_dalvik_system_Taint_addTaintCharSequence},
     { "addTaintObjectArray",  "([Ljava/lang/Object;I)V",
         Dalvik_dalvik_system_Taint_addTaintObjectArray},
     { "addTaintBooleanArray",  "([ZI)V",
@@ -731,6 +896,8 @@ const DalvikNativeMethod dvm_dalvik_system_Taint[] = {
         Dalvik_dalvik_system_Taint_addTaintDouble},
     { "getTaintString",  "(Ljava/lang/String;)I",
         Dalvik_dalvik_system_Taint_getTaintString},
+     { "getTaintCharSequence",  "(Ljava/lang/CharSequence;)I",
+        Dalvik_dalvik_system_Taint_getTaintCharSequence},
     { "getTaintObjectArray",  "([Ljava/lang/Object;)I",
         Dalvik_dalvik_system_Taint_getTaintObjectArray},
     { "getTaintBooleanArray",  "([Z)I",
@@ -771,11 +938,19 @@ const DalvikNativeMethod dvm_dalvik_system_Taint[] = {
         Dalvik_dalvik_system_Taint_getTaintFile},
     { "addTaintFile",  "(II)V",
         Dalvik_dalvik_system_Taint_addTaintFile},
+    { NULL, NULL, NULL },
+};
+const DalvikNativeMethod dvm_dalvik_system_TaintLog[] = {
     { "log",  "(Ljava/lang/String;)V",
         Dalvik_dalvik_system_Taint_log},
-    { "logPathFromFd",  "(I)V",
-        Dalvik_dalvik_system_Taint_logPathFromFd},
-    { "logPeerFromFd",  "(I)V",
-        Dalvik_dalvik_system_Taint_logPeerFromFd},
+    { "getPathFromFd",  "(I)Ljava/lang/String;",
+        Dalvik_dalvik_system_Taint_getPathFromFd},
+
+    { "getProperty",     "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+        Dalvik_dalvik_system_Taint_getProperty},
+    { "getPropertyAsInt",     "(Ljava/lang/String;I)I",
+        Dalvik_dalvik_system_Taint_getPropertyAsInt},
+    { "getPropertyAsBool",     "(Ljava/lang/String;Z)Z",
+        Dalvik_dalvik_system_Taint_getPropertyAsBool},
     { NULL, NULL, NULL },
 };
