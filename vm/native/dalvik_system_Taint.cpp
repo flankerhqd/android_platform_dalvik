@@ -711,7 +711,7 @@ static void Dalvik_dalvik_system_Taint_getPathFromFd(const u4* args,
     snprintf(ppath, 20, "/proc/%d/fd/%d", pid, fd);
    
 
-    }
+ 
 
     len = readlink(ppath, rpath, 80);
 
@@ -742,11 +742,11 @@ static void Dalvik_dalvik_system_Taint_getProperty(const u4* args,
     char valueBuffer[PROPERTY_VALUE_MAX];
 
     if (keyObj == NULL) {
-        dvmThrowException("Ljava/lang/NullPointerException;", NULL);
+        //dvmThrowException("Ljava/lang/NullPointerException;", NULL);
         RETURN_VOID();
     }
     if (defaultValueObj == NULL) {
-        dvmThrowException("Ljava/lang/NullPointerException;", NULL);
+        //dvmThrowException("Ljava/lang/NullPointerException;", NULL);
         RETURN_VOID();
     }
     
@@ -776,7 +776,7 @@ static void Dalvik_dalvik_system_Taint_getPropertyAsInt(const u4* args,
     char valueBuffer[PROPERTY_VALUE_MAX];
 
     if (keyObj == NULL) {
-        dvmThrowException("Ljava/lang/NullPointerException;", NULL);
+        //dvmThrowException("Ljava/lang/NullPointerException;", NULL);
         RETURN_VOID();
     }   
     key = dvmCreateCstrFromString(keyObj);
@@ -806,7 +806,7 @@ static void Dalvik_dalvik_system_Taint_getPropertyAsBool(const u4* args,
     char valueBuffer[PROPERTY_VALUE_MAX];
 
     if (keyObj == NULL) {
-        dvmThrowException("Ljava/lang/NullPointerException;", NULL);
+        //dvmThrowException("Ljava/lang/NullPointerException;", NULL);
         RETURN_VOID();
     }
     
